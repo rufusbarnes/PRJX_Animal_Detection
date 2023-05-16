@@ -1,28 +1,46 @@
 import torch
 from torch.utils.data import Dataset
+from torchvision.transforms import ToPILImage
+from transformations import BBoxToBoundary
 import os
 import pandas as pd
 from PIL import Image
 from ast import literal_eval
+from collections import Counter
+import ast
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import numpy as np
+import random
 
 class SerengetiDataset(Dataset):
     """
     A PyTorch Dataset class to be used in a PyTorch DataLoader to create batches.
     """
-    def __init__(self, image_folder, images_df, annotations_df, classes_df, transform=None):
+    def __init__(self, image_folder, images_df, annotations_df, classes_df, night_images, split=None, transform=None):
         self.image_folder = image_folder
         self.images_df = images_df
         self.annotations_df = annotations_df
         self.classes_df = classes_df
         self.transform = transform
+        self.night_images = night_images
+        self.split = split
+        if self.split:
+            self.split = self.split.upper()
+            assert self.split in {'DAY', 'NIGHT'}
+            if self.split == 'NIGHT':
+                self.images_df = self.images_df[self.images_df['image_path_rel'].isin(self.night_images)]
+            elif self.split == 'DAY':
+                self.images_df = self.images_df[~self.images_df['image_path_rel'].isin(self.night_images)]
 
-        self.bboxes = {row['id']: [] for _, row in self.images_df.iterrows()} # 4909 images have no bounding boxes, filter these in df 
-        for i, row in self.annotations_df.iterrows():                         # images have been filtered, now boxes need to be filtered?
-            self.bboxes[row['image_id']].append(i)
+        self.bboxes = {row['id']: [] for _, row in self.images_df.iterrows()}
+        for i, row in self.annotations_df.iterrows():
+            if row['image_id'] in self.bboxes:
+                self.bboxes[row['image_id']].append(i)
 
         self.annotations_df['bbox'] = self.annotations_df['bbox'].apply(literal_eval)
         
-        print('Initialized dataset.')
+        print(f'Initialized dataset [{self.split} split].')
 
     def __getitem__(self, i):
         image_info = self.images_df.iloc[i]
@@ -35,7 +53,7 @@ class SerengetiDataset(Dataset):
 
         species = image_info['question__species'].lower()
         label_step = self.classes_df.loc[self.classes_df['name'] == species, 'id']
-        label = self.classes_df.loc[self.classes_df['name'] == species, 'id'].iloc[0] #####
+        label = self.classes_df.loc[self.classes_df['name'] == species, 'id'].iloc[0]
         labels = torch.FloatTensor([label for _ in boxes])
         
         if self.transform:
@@ -60,25 +78,75 @@ class SerengetiDataset(Dataset):
 
         return images, boxes, labels  # tensor (N, 3, x, y), 3 lists of N tensors each
 
+    def get_classes(self):
+        classes_present = set()
+        for i, row in self.images_df.iterrows():
+            species = row['question__species'].lower()
+            classes_present.add(species)
+    
+        filtered_classes = self.classes_df[self.classes_df['name'].isin(classes_present)]
+        return (filtered_classes)
+
+    def get_class_frequencies(self):
+        class_frequencies = {row['name']: 0 for i, row in self.get_classes().iterrows()}
+        for i, row in self.images_df.iterrows():
+            species = row['question__species'].lower()
+            box_idxs = self.bboxes[row['id']]
+            class_frequencies[species] += len(box_idxs)
+        
+        return class_frequencies
+
+def show_sample(sample, fractional=False):
+    if fractional:
+        sample = BBoxToBoundary()(sample)
+    image, bboxes, labels = sample
+
+    fig, ax = plt.subplots(1)
+    ax.imshow(image)
+    plt.title(labels)
+    for bbox in bboxes:
+        #bottom left, width, height
+        w, h = bbox[2], bbox[3]
+        x = bbox[0] 
+        y = bbox[1]
+        
+
+        rect = patches.Rectangle((x, y), w, h, linewidth=3, edgecolor='black', facecolor='none')
+        ax.add_patch(rect)
+    plt.show()
+
+
 def get_dataset_params():
     image_folder = '../snapshot-serengeti'
     images_df = pd.read_csv('./snapshot-serengeti/bbox_images_non_empty_downloaded.csv')
     annotations_df = pd.read_csv('./snapshot-serengeti/bbox_annotations_downloaded.csv')
     classes_df = pd.read_csv('./snapshot-serengeti/classes.csv')
+    with open('./snapshot-serengeti/grayscale_images.txt', 'r') as f:
+        night_images = set(ast.literal_eval(f.read()))
 
-    return image_folder, images_df, annotations_df, classes_df
+    return image_folder, images_df, annotations_df, classes_df, night_images
 
-from collections import Counter
+
 def main():
-    dataset = SerengetiBBoxDataset(*get_dataset_params())
-    print('Serengeti Dataset')
-    print(f'num_items: {len(dataset)}')
-    print(f'item_0: {dataset[0]}')
-    c = Counter([len(boxes) for boxes in dataset.bboxes.values()])
-    print(f'boxes_per_img: {c}')
+    # dataset = SerengetiDataset(*get_dataset_params())
+    day_dataset = SerengetiDataset(*get_dataset_params(), split='DAY')
+    night_dataset = SerengetiDataset(*get_dataset_params(), split='NIGHT')
+    day_freqs = day_dataset.get_class_frequencies()
+    night_freqs = night_dataset.get_class_frequencies()
+    total_freqs = {k: (v, night_freqs[k]) for k, v in day_freqs.items() if k in night_freqs.keys()}
+    viable_freqs = {k: v for k, v in total_freqs if min(v) > 500}
+    print(total_freqs)
+
+
 
 if __name__ == '__main__':
     main()
+
+
+
+
+
+
 
 # Reference Dataset
 '''
