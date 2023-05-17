@@ -163,7 +163,6 @@ class BBoxRandomCrop(object):
                 # Discard bounding boxes that don't meet this criterion
                 new_boxes = boxes[centers_in_crop, :]
                 new_labels = labels[centers_in_crop]
-                new_difficulties = difficulties[centers_in_crop]
 
                 # Calculate bounding boxes' new coordinates in the crop
                 new_boxes[:, :2] = torch.max(new_boxes[:, :2], crop[:2])  # crop[:2] is [left, top]

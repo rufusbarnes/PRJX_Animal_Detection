@@ -7,52 +7,33 @@ import torch.optim
 import torch.utils.data
 import torchvision.transforms.v2 as v2
 from torchvision import disable_beta_transforms_warning
-# from models.SSD300 import SSD300, MultiBoxLoss
 from models.EfficientNetSSD300 import EfficientNetSSD300, MultiBoxLoss
 from datasets import SerengetiDataset, get_dataset_params
-from transformations import BBoxRandomCrop, BBoxRandomHorizontalFlip, BBoxResize, BBoxToFractional
+from transformations import *
 from utils import *
 
-# Disable torchvision warnings
-disable_beta_transforms_warning()
-
-# Data parameters
-data_folder = './SSDataset'  # folder with data files
-keep_difficult = True  # use objects considered difficult to detect?
-
-# Model parameters
-# Not too many here since the SSD300 has a very specific structure
-with open('snapshot-serengeti/classes.csv', 'r') as f:
-    classes = pd.read_csv(f)
-n_classes = len(classes)  # number of different types of objects
-
-label_map = {}
-for i, row in classes.iterrows():
-    label_map[i] = row['name']
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# Learning parameters
-checkpoint = None  # path to model checkpoint, None if none
-batch_size = 32  # batch size
-iterations = 120_000  # number of iterations to train
-workers = 16 # number of workers for loading data in the DataLoader
-print_freq = 200  # print training status every __ batches
-lr = 1e-3  # learning rate
-decay_lr_at = [80_000, 100_000]  # decay learning rate after these many iterations
-decay_lr_to = 0.1  # decay learning rate to this fraction of the existing learning rate
-momentum = 0.9  # momentum
-weight_decay = 5e-4  # weight decay
-grad_clip = None  # clip if gradients are exploding, which may happen at larger batch sizes (sometimes at 32) - you will recognize it by a sorting error in the MuliBox loss calculation
-
-cudnn.benchmark = True
-
-def main():
+def train(split, use_tmp, top_species, n_classes, output_file='Checkpoint', viking=False):
     """
     Training.
     """
+    # Disable torchvision warnings
     disable_beta_transforms_warning()
-    global start_epoch, label_map, epoch, checkpoint, decay_lr_at
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Learning parameters
+    checkpoint = None  # path to model checkpoint, None if none
+    batch_size = 128  # batch size
+    iterations = 120_000  # number of iterations to train
+    workers = 16 # number of workers for loading data in the DataLoader
+    print_freq = 1  # print training status every __ batches
+    lr = 1e-3  # learning rate
+    decay_lr_at = [80_000, 100_000]  # decay learning rate after these many iterations
+    decay_lr_to = 0.1  # decay learning rate to this fraction of the existing learning rate
+    momentum = 0.9  # momentum
+    weight_decay = 5e-4  # weight decay
+    grad_clip = None  # clip if gradients are exploding, which may happen at larger batch sizes (sometimes at 32) - you will recognize it by a sorting error in the MuliBox loss calculation
+
+    cudnn.benchmark = True
 
     # Initialize model or load checkpoint
     if checkpoint is None:
@@ -80,24 +61,21 @@ def main():
     # Move to default device
     model = model.to(device)
     criterion = MultiBoxLoss(anchor_boxes=model.anchor_boxes).to(device)
-    print(f'\nLoaded model to {device}.')
+    print(f'\nLoaded model to {device}, {workers} workers.')
 
     # Custom dataloaders
-    train_dataset, _ = get_train_val_datasets()
+    train_dataset, _ = get_train_val_datasets(split=split, use_tmp=use_tmp, top_species=top_species, viking=viking)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
                                                collate_fn=train_dataset.dataset.collate_fn, num_workers=workers,
                                                pin_memory=True)  # note that we're passing the collate function here
     
-    print(f'Loaded dataset.')
+    print(f'Initialized data loader - split: {split} / use_tmp: {use_tmp} / top_species: {top_species}')
 
-
-    # Calculate total number of epochs to train and the epochs to decay learning rate at (i.e. convert iterations to epochs)
-    # To convert iterations to epochs, divide iterations by the number of iterations per epoch
-    # The paper trains for 120,000 iterations with a batch size of 32, decays after 80,000 and 100,000 iterations
     epochs = iterations // (len(train_dataset) // batch_size)
     decay_lr_at = [it // (len(train_dataset) // batch_size) for it in decay_lr_at]
 
     # Epochs
+    print(f'Train start.')
     for epoch in range(start_epoch, epochs):
 
         # Decay learning rate at particular epochs
@@ -105,16 +83,19 @@ def main():
             adjust_learning_rate(optimizer, decay_lr_to)
 
         # One epoch's training
-        train(train_loader=train_loader,
-              model=model,
-              criterion=criterion,
-              optimizer=optimizer,
-              epoch=epoch)
+        train_epoch(train_loader=train_loader,
+                    model=model,
+                    criterion=criterion,
+                    optimizer=optimizer,
+                    epoch=epoch,
+                    print_freq=print_freq,
+                    grad_clip=grad_clip)
 
         # Save checkpoint
-        save_checkpoint(epoch, model, optimizer)
+        # save_checkpoint(epoch, model, optimizer) REPLACE THIS
+        save_checkpoint(epoch, model, optimizer, output_file=output_file)
 
-def train(train_loader, model, criterion, optimizer, epoch):
+def train_epoch(train_loader, model, criterion, optimizer, epoch, print_freq, grad_clip):
     """
     One epoch's training.
 
@@ -133,7 +114,6 @@ def train(train_loader, model, criterion, optimizer, epoch):
     start = time.time()
 
     # Batches
-    print(f'Beginning epoch {epoch}.')
     for i, (images, boxes, labels) in enumerate(train_loader):
         data_time.update(time.time() - start)
 
@@ -174,38 +154,34 @@ def train(train_loader, model, criterion, optimizer, epoch):
                                                                   data_time=data_time, loss=losses))
     del predicted_locs, predicted_scores, images, boxes, labels  # free some memory since their histories may be stored
 
-def get_train_val_datasets():
+def get_train_val_datasets(split=None, use_tmp=False, top_species=False, viking=False):
+    '''
+    :param split: string {'day', 'night'}, controls which image types are returned
+    :param use_tmp: boolean, set to true if dataset images are stored in /tmp gpu memory
+    :param top_species: boolean, set to true to only include {elephant, dikdik, lion_female, reedbuck, hippopotamous}
+    :returns: train and validation datasets, 70:30 split
+    '''
+
     disable_beta_transforms_warning()
-    params = get_dataset_params()
-    dataset = SerengetiDataset(*params)
+    params = get_dataset_params(use_tmp=use_tmp, top_species=top_species, viking=viking)
+    dataset = SerengetiDataset(*params, split=split)
 
     train_split = 0.7
     n_train = int(len(dataset) * train_split)
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, (n_train, len(dataset)-n_train),)
-    
-    train_transform = v2.Compose([
-        BBoxToFractional(),
-        BBoxRandomHorizontalFlip(),
-        BBoxRandomCrop((0.7,1.0), (0.9,1.1)),
-        BBoxResize((300, 300)),
-        v2.ColorJitter(brightness=0.1, contrast=0.05),
-        v2.Compose([v2.ToImageTensor(), v2.ConvertImageDtype()]),
-        v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
-
-    val_transform = v2.Compose([
-        BBoxToFractional(),
-        BBoxResize((300, 300)),
-        v2.Compose([v2.ToImageTensor(), v2.ConvertImageDtype()]),
-        v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
 
     train_dataset.dataset = copy(dataset)
-    train_dataset.dataset.transform = train_transform
-    val_dataset.dataset.transform = val_transform
+    train_dataset.dataset.transform = train_transform()
 
     return train_dataset, val_dataset
 
+def main():
+    split=None
+    use_tmp=False
+    top_species=True
+    n_classes=5
+    output_file='Checkpoint_enet_full_n5'
+    train(split, use_tmp, top_species, n_classes, output_file=output_file, viking=True)
 
 if __name__ == '__main__':
     main()

@@ -18,13 +18,18 @@ disable_beta_transforms_warning()
 # Model parameters
 with open('./snapshot-serengeti/classes.csv', 'r') as f:
     classes = pd.read_csv(f)
-n_classes = len(classes)  # number of different types of objects
+n_classes = 5  # number of different types of objects
 
 label_map = {}
 for i, row in classes.iterrows():
     label_map[i] = row['name']
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Dataset Parameters
+use_tmp = True
+top_species = True
+split = None
 
 # Learning parameters
 checkpoint = None  # path to model checkpoint, None if none
@@ -78,12 +83,12 @@ def main():
     print(f'\nLoaded model to {device}, {workers} workers.')
 
     # Custom dataloaders
-    train_dataset, _ = get_train_val_datasets(use_tmp=True, top_species=True)
+    train_dataset, _ = get_train_val_datasets(split=split, use_tmp=use_tmp, top_species=top_species)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
                                                collate_fn=train_dataset.dataset.collate_fn, num_workers=workers,
                                                pin_memory=True)  # note that we're passing the collate function here
     
-    print(f'Initialized data loader.')
+    print(f'Initialized data loader - split: {split} / use_tmp: {use_tmp} / top_species: {top_species}')
 
     epochs = iterations // (len(train_dataset) // batch_size)
     decay_lr_at = [it // (len(train_dataset) // batch_size) for it in decay_lr_at]
