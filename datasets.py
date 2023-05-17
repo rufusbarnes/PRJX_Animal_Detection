@@ -44,7 +44,7 @@ class SerengetiDataset(Dataset):
 
         self.annotations_df['bbox'] = self.annotations_df['bbox'].apply(literal_eval)
         
-        print(f'Initialized dataset [{self.split} split] / [{len(self.classes_df)} classes].')
+        print(f'Initialized dataset - split: {self.split} / classes: {len(self.classes_df)}.')
 
     def __getitem__(self, i):
         image_info = self.images_df.iloc[i]
