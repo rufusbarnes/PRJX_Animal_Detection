@@ -22,7 +22,7 @@ def train(split, use_tmp, top_species, n_classes, output_file='Checkpoint', viki
 
     # Learning parameters
     checkpoint = None  # path to model checkpoint, None if none
-    batch_size = 1  # batch size
+    batch_size = 64  # batch size
     iterations = 120_000  # number of iterations to train
     workers = 16 # number of workers for loading data in the DataLoader
     print_freq = 1  # print training status every __ batches
@@ -143,7 +143,6 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, print_freq, gr
         batch_time.update(time.time() - start)
 
         start = time.time()
-        print(boxes)
         # Print status
         if i % print_freq == 0:
             print('Epoch: [{0}][{1}/{2}]\t'
@@ -179,8 +178,8 @@ def main():
     split=None
     use_tmp=False
     top_species=True
-    n_classes=5
-    output_file='Checkpoint_enet_full_n5'
+    n_classes=6 # (ELEPHANT/LION_FEMALE/DIKDIK/REEDBUCK/HIPPOPOTAMUS/EMPTY)
+    output_file='checkpoint_full_n6'
     train(split, use_tmp, top_species, n_classes, output_file=output_file, viking=True)
 
 if __name__ == '__main__':
