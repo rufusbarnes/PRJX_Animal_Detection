@@ -22,7 +22,7 @@ def train(split, use_tmp, top_species, n_classes, output_file='Checkpoint', viki
 
     # Learning parameters
     checkpoint = None  # path to model checkpoint, None if none
-    batch_size = 128  # batch size
+    batch_size = 1  # batch size
     iterations = 120_000  # number of iterations to train
     workers = 16 # number of workers for loading data in the DataLoader
     print_freq = 1  # print training status every __ batches
@@ -60,7 +60,7 @@ def train(split, use_tmp, top_species, n_classes, output_file='Checkpoint', viki
 
     # Move to default device
     model = model.to(device)
-    criterion = MultiBoxLoss(anchor_boxes=model.anchor_boxes).to(device)
+    criterion = MultiBoxLoss(priors_cxcy=model.anchor_boxes).to(device)
     print(f'\nLoaded model to {device}, {workers} workers.')
 
     # Custom dataloaders
@@ -69,7 +69,7 @@ def train(split, use_tmp, top_species, n_classes, output_file='Checkpoint', viki
                                                collate_fn=train_dataset.dataset.collate_fn, num_workers=workers,
                                                pin_memory=True)  # note that we're passing the collate function here
     
-    print(f'Initialized data loader - split: {split} / use_tmp: {use_tmp} / top_species: {top_species}')
+    print(f'Initialized data loader - use_tmp: {use_tmp} / top_species: {top_species}')
 
     epochs = iterations // (len(train_dataset) // batch_size)
     decay_lr_at = [it // (len(train_dataset) // batch_size) for it in decay_lr_at]
@@ -143,7 +143,7 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, print_freq, gr
         batch_time.update(time.time() - start)
 
         start = time.time()
-
+        print(boxes)
         # Print status
         if i % print_freq == 0:
             print('Epoch: [{0}][{1}/{2}]\t'
