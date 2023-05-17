@@ -22,6 +22,10 @@ class SerengetiDataset(Dataset):
         self.images_df = images_df
         self.annotations_df = annotations_df
         self.classes_df = classes_df
+        present_classes = {name.lower() for name in set(self.images_df['question__species'].values)}  # Get set of present species
+        self.classes_df = self.classes_df[self.classes_df['name'].isin(present_classes)] # Filter out missing animals
+        self.classes_df['id'] = self.classes_df.reset_index().index                      # reset ids to 0 to n - 1
+
         self.transform = transform
         self.night_images = night_images
         self.split = split
@@ -40,7 +44,7 @@ class SerengetiDataset(Dataset):
 
         self.annotations_df['bbox'] = self.annotations_df['bbox'].apply(literal_eval)
         
-        print(f'Initialized dataset [{self.split} split].')
+        print(f'Initialized dataset [{self.split} split] / [{len(self.classes_df)} classes].')
 
     def __getitem__(self, i):
         image_info = self.images_df.iloc[i]
@@ -52,7 +56,6 @@ class SerengetiDataset(Dataset):
         boxes = torch.FloatTensor([self.annotations_df.iloc[i]['bbox'] for i in box_idxs])
 
         species = image_info['question__species'].lower()
-        label_step = self.classes_df.loc[self.classes_df['name'] == species, 'id']
         label = self.classes_df.loc[self.classes_df['name'] == species, 'id'].iloc[0]
         labels = torch.FloatTensor([label for _ in boxes])
         
