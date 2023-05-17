@@ -116,7 +116,7 @@ def show_sample(sample, fractional=False):
     plt.show()
 
 
-def get_dataset_params(use_tmp=False, top_species=False):
+def get_dataset_params(use_tmp=False, top_species=False, viking=False):
     '''
     Utility function holding parameters used to initialize a dataset
     :param use_tmp: set to true if image data is being stored in the GPU /tmp store
@@ -125,7 +125,10 @@ def get_dataset_params(use_tmp=False, top_species=False):
     if use_tmp:
         image_folder = '~/../../../tmp/snapshot-serengeti/'
     else:
-        image_folder = '~/scratch/snapshot-serengeti/'
+        if viking:
+            image_folder = '../PRBX/snapshot-serengeti/'
+        else:
+            image_folder = '../snapshot-serengeti/'
 
     if top_species:
         images_df = pd.read_csv('./snapshot-serengeti/bbox_images_top_species.csv')
