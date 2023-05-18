@@ -9,23 +9,39 @@ from copy import copy
 from utils import find_jaccard_overlap
 
 
-class BBoxToFractional(object):
+class BBoxSerengetiToBoundary(object):
+    def __call__(self, sample):
+        image, boxes, labels = sample
+        x = boxes[:, 0]
+        y = boxes[:, 1]
+        w = boxes[:, 2]
+        h = boxes[:, 3]
+
+        boundary_boxes = torch.zeros_like(boxes)
+        boundary_boxes[:, 0] = x
+        boundary_boxes[:, 1] = y
+        boundary_boxes[:, 2] = x + w
+        boundary_boxes[:, 3] = y + h
+
+        return image, boundary_boxes, labels
+
+class BoundaryToCenterSize(object):
     def __call__(self, sample):
         """
             returns: new bounding box in fractional format (ie cx cy w h)
         """
         image, boxes, labels = sample
-        fractional_boxes = torch.FloatTensor(len(boxes), 4)
+        center_size_boxes = torch.FloatTensor(len(boxes), 4)
         for i, box in enumerate(boxes):
             x, y, w, h = box
-            fractional_boxes[i] = torch.Tensor([
+            center_size_boxes[i] = torch.Tensor([
                 x + (w / 2), 
                 y + (w / 2), 
                 w / 2, 
                 h / 2
             ])
 
-        return image, fractional_boxes, labels
+        return image, center_size_boxes, labels
 
 
 class BBoxToBoundary(object):
@@ -34,17 +50,29 @@ class BBoxToBoundary(object):
             returns: new bounding box in boundary format (ie x y w h)
         """
         image, boxes, labels = sample
-        fractional_boxes = torch.FloatTensor(len(boxes), 4)
+        boundary_boxes = torch.FloatTensor(len(boxes), 4)
+
         for i, box in enumerate(boxes):
             x, y, w, h = box
-            fractional_boxes[i] = torch.Tensor([
+            boundary_boxes[i] = torch.Tensor([
                 x - w, 
                 y - w, 
                 w * 2,
                 h * 2
             ])
 
-        return image, fractional_boxes, labels
+        return image, boundary_boxes, labels
+
+class BBoxToFractional(object):
+    def __call__(self, sample):
+        """
+            returns: new bounding box in fractional format (ie x y w h)
+        """
+        image, boxes, labels = sample
+        h = image.size(1)
+        w = image.size(2)
+        new_boxes = boxes / torch.Tensor([w,h,w,h]).unsqueeze(0)
+        return image, new_boxes, labels
 
 
 class BBoxRandomHorizontalFlip(object):
@@ -70,7 +98,9 @@ class BBoxRandomHorizontalFlip(object):
 
 
     def bbox_hflip(self, width, bbox):
-        bbox[0] = width - bbox[0]
+        x1 = width - bbox[0]
+        x2 = width - bbox[2]
+        bbox[0], bbox[2] = min(x1,x2), max(x1,x2)
         return bbox
 
 
@@ -176,10 +206,11 @@ class BBoxRandomCrop(object):
 def train_transform():
     return v2.Compose([
         v2.Compose([v2.ToImageTensor(), v2.ConvertImageDtype()]),
-        BBoxRandomHorizontalFlip(),
-        BBoxRandomCrop((0.7,1.0), (0.9,1.1)),
-        BBoxResize(300),
-        BBoxToFractional(),
+        BBoxSerengetiToBoundary(),              # Tensor, Serengeti Coords
+        BBoxRandomHorizontalFlip(),             # Tensor, Boundary Coords
+        BBoxRandomCrop((0.7,1.0), (0.9,1.1)),   # Tensor, Boundary Coords
+        BBoxResize(300),                        # Tensor, Boundary Coords
+        BBoxToFractional(),                     # Tensor, Fractional Boundary Coords
         v2.ColorJitter(brightness=0.1, contrast=0.05),
         v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])

@@ -23,6 +23,7 @@ class SerengetiDataset(Dataset):
         self.annotations_df = annotations_df
         self.classes_df = classes_df
         present_classes = {name.lower() for name in set(self.images_df['question__species'].values)}  # Get set of present species
+        present_classes.add('blank')
         self.classes_df = self.classes_df[self.classes_df['name'].isin(present_classes)] # Filter out missing animals
         self.classes_df['id'] = self.classes_df.reset_index().index                      # reset ids to 0 to n - 1
 
@@ -44,7 +45,7 @@ class SerengetiDataset(Dataset):
 
         self.annotations_df['bbox'] = self.annotations_df['bbox'].apply(literal_eval)
         
-        print(f'Initialized dataset [{self.split} split] / [{len(self.classes_df)} classes].')
+        print(f'Initialized dataset - split: {self.split} / classes: {len(self.classes_df)}.')
 
     def __getitem__(self, i):
         image_info = self.images_df.iloc[i]
@@ -83,7 +84,7 @@ class SerengetiDataset(Dataset):
 
     def get_classes(self):
         classes_present = set()
-        for i, row in self.images_df.iterrows():
+        for _, row in self.images_df.iterrows():
             species = row['question__species'].lower()
             classes_present.add(species)
     
