@@ -22,10 +22,10 @@ def train(split, use_tmp, top_species, n_classes, output_file='Checkpoint', viki
 
     # Learning parameters
     checkpoint = None  # path to model checkpoint, None if none
-    batch_size = 64  # batch size
-    iterations = 120_000  # number of iterations to train
+    batch_size = 32  # batch size
+    iterations = 60_000  # number of iterations to train
     workers = 16 # number of workers for loading data in the DataLoader
-    print_freq = 1  # print training status every __ batches
+    print_freq = 40  # print training status every __ batches
     lr = 1e-3  # learning rate
     decay_lr_at = [80_000, 100_000]  # decay learning rate after these many iterations
     decay_lr_to = 0.1  # decay learning rate to this fraction of the existing learning rate
@@ -71,7 +71,9 @@ def train(split, use_tmp, top_species, n_classes, output_file='Checkpoint', viki
     
     print(f'Initialized data loader - use_tmp: {use_tmp} / top_species: {top_species}')
 
+    # SET EPOCHS TO A CONSTANT FOR EACH SET, ie. 72 EPOCHS
     epochs = iterations // (len(train_dataset) // batch_size)
+    # SET DECAY LR AT TO EPOCHS INSTEAD OF ITERATIONS
     decay_lr_at = [it // (len(train_dataset) // batch_size) for it in decay_lr_at]
 
     # Epochs
@@ -153,7 +155,7 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, print_freq, gr
                                                                   data_time=data_time, loss=losses))
     del predicted_locs, predicted_scores, images, boxes, labels  # free some memory since their histories may be stored
 
-def get_train_val_datasets(split=None, use_tmp=False, top_species=False, viking=False):
+def get_train_val_datasets(split=None, use_tmp=False, top_species=True, viking=False):
     '''
     :param split: string {'day', 'night'}, controls which image types are returned
     :param use_tmp: boolean, set to true if dataset images are stored in /tmp gpu memory

@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import Dataset
 from torchvision.transforms import ToPILImage
-from transformations import BBoxToBoundary
+from transformations import BBoxToBoundary, BBoxSerengetiToBoundary
 import os
 import pandas as pd
 from PIL import Image
@@ -100,9 +100,11 @@ class SerengetiDataset(Dataset):
         
         return class_frequencies
 
-def show_sample(sample, fractional=False):
-    if fractional:
+def show_sample(sample, bbox_type=None):
+    if bbox_type == 'fractional':
         sample = BBoxToBoundary()(sample)
+    elif bbox_type == 'serengeti':
+        sample = BBoxSerengetiToBoundary()
     image, bboxes, labels = sample
 
     fig, ax = plt.subplots(1)
@@ -110,13 +112,13 @@ def show_sample(sample, fractional=False):
     plt.title(labels)
     for bbox in bboxes:
         #bottom left, width, height
-        w, h = bbox[2], bbox[3]
         x = bbox[0] 
         y = bbox[1]
-        
-
+        w = abs(bbox[2] - bbox[0])
+        h = abs(bbox[3] - bbox[1])
         rect = patches.Rectangle((x, y), w, h, linewidth=3, edgecolor='black', facecolor='none')
         ax.add_patch(rect)
+
     plt.show()
 
 
