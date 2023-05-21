@@ -1,34 +1,10 @@
 from utils import *
-from datasets import PascalVOCDataset
+from datasets import SerengetiDataset, get_dataset_params
 from tqdm import tqdm
 from pprint import PrettyPrinter
 
 # Good formatting when printing the APs for each class and mAP
 pp = PrettyPrinter()
-
-# Parameters
-data_folder = './'
-keep_difficult = True  # difficult ground truth objects must always be considered in mAP calculation, because these objects DO exist!
-batch_size = 64
-workers = 4
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-checkpoint = './checkpoint_ssd300.pth.tar'
-
-# Load model checkpoint that is to be evaluated
-checkpoint = torch.load(checkpoint)
-model = checkpoint['model']
-model = model.to(device)
-
-# Switch to eval mode
-model.eval()
-
-# Load test data
-test_dataset = PascalVOCDataset(data_folder,
-                                split='test',
-                                keep_difficult=keep_difficult)
-test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
-                                          collate_fn=test_dataset.collate_fn, num_workers=workers, pin_memory=True)
-
 
 def evaluate(test_loader, model):
     """
@@ -47,11 +23,10 @@ def evaluate(test_loader, model):
     det_scores = list()
     true_boxes = list()
     true_labels = list()
-    true_difficulties = list()  # it is necessary to know which objects are 'difficult', see 'calculate_mAP' in utils.py
 
     with torch.no_grad():
         # Batches
-        for i, (images, boxes, labels, difficulties) in enumerate(tqdm(test_loader, desc='Evaluating')):
+        for _, (images, boxes, labels) in enumerate(tqdm(test_loader, desc='Evaluating')):
             images = images.to(device)  # (N, 3, 300, 300)
 
             # Forward prop.
@@ -73,10 +48,9 @@ def evaluate(test_loader, model):
             det_scores.extend(det_scores_batch)
             true_boxes.extend(boxes)
             true_labels.extend(labels)
-            true_difficulties.extend(difficulties)
 
         # Calculate mAP
-        APs, mAP = calculate_mAP(det_boxes, det_labels, det_scores, true_boxes, true_labels, true_difficulties)
+        APs, mAP = calculate_mAP(det_boxes, det_labels, det_scores, true_boxes, true_labels)
 
     # Print AP for each class
     pp.pprint(APs)
@@ -84,5 +58,28 @@ def evaluate(test_loader, model):
     print('\nMean Average Precision (mAP): %.3f' % mAP)
 
 
-if __name__ == '__main__':
+def main():
+    # Parameters
+    batch_size = 64
+    workers = 16
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    checkpoint = './checkpoint_full_n6.pth.tar'
+
+    # Load model checkpoint that is to be evaluated
+    checkpoint = torch.load(checkpoint)
+    model = checkpoint['model']
+    model = model.to(device)
+
+    # Switch to eval mode
+    model.eval()
+
+    # Load test data
+    test_dataset = SerengetiDataset(*get_dataset_params(viking=True), split='test', )
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
+                                            collate_fn=test_dataset.collate_fn, num_workers=workers, pin_memory=True)
+
     evaluate(test_loader, model)
+
+
+if __name__ == '__main__':
+    main()
