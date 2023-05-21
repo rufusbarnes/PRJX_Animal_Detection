@@ -208,7 +208,7 @@ def train_transform():
         v2.Compose([v2.ToImageTensor(), v2.ConvertImageDtype()]),
         BBoxSerengetiToBoundary(),              # Tensor, Serengeti Coords
         BBoxRandomHorizontalFlip(),             # Tensor, Boundary Coords
-        BBoxRandomCrop((0.7,1.0), (0.9,1.1)),   # Tensor, Boundary Coords
+        BBoxRandomCrop((0.3,1.0), (0.5,2)),   # Tensor, Boundary Coords
         BBoxResize(300),                        # Tensor, Boundary Coords
         BBoxToFractional(),                     # Tensor, Fractional Boundary Coords
         v2.ColorJitter(brightness=0.1, contrast=0.05),
