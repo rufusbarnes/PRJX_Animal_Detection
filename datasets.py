@@ -1,41 +1,46 @@
 import torch
 from torch.utils.data import Dataset
 from torchvision.transforms import ToPILImage
-from transformations import BBoxToBoundary, BBoxSerengetiToBoundary
+from transformations import BBoxToBoundary, BBoxSerengetiToBoundary, train_transform, test_transform
 import os
 import pandas as pd
 from PIL import Image
 from ast import literal_eval
-from collections import Counter
 import ast
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-import numpy as np
-import random
 
 class SerengetiDataset(Dataset):
     """
     A PyTorch Dataset class to be used in a PyTorch DataLoader to create batches.
     """
-    def __init__(self, image_folder, images_df, annotations_df, classes_df, night_images, split=None, transform=None):
+    def __init__(self, image_folder, images_df, annotations_df, classes_df, night_images, split, image_type=None):
         self.image_folder = image_folder
-        self.images_df = images_df
         self.annotations_df = annotations_df
+        self.images_df = images_df
+        
+        self.split = split.lower()
+        assert self.split in {'train', 'test'}
+        self.images_df = self.images_df[self.images_df['split'] == self.split]
+        if self.split == 'train':
+            self.transform = train_transform()
+        else:
+            self.transform = test_transform()
+        
         self.classes_df = classes_df
         present_classes = {name.lower() for name in set(self.images_df['question__species'].values)}  # Get set of present species
         present_classes.add('blank')
         self.classes_df = self.classes_df[self.classes_df['name'].isin(present_classes)] # Filter out missing animals
         self.classes_df['id'] = self.classes_df.reset_index().index                      # reset ids to 0 to n - 1
 
-        self.transform = transform
         self.night_images = night_images
-        self.split = split
-        if self.split:
-            self.split = self.split.upper()
-            assert self.split in {'DAY', 'NIGHT'}
-            if self.split == 'NIGHT':
+        self.image_type = image_type
+        if self.image_type:
+            self.image_type = self.image_type.upper()
+            assert self.image_type in {'DAY', 'NIGHT'}
+            if self.image_type == 'NIGHT':
                 self.images_df = self.images_df[self.images_df['image_path_rel'].isin(self.night_images)]
-            elif self.split == 'DAY':
+            elif self.image_type == 'DAY':
                 self.images_df = self.images_df[~self.images_df['image_path_rel'].isin(self.night_images)]
 
         self.bboxes = {row['id']: [] for _, row in self.images_df.iterrows()}
@@ -122,11 +127,10 @@ def show_sample(sample, bbox_type=None):
     plt.show()
 
 
-def get_dataset_params(use_tmp=False, top_species=False, viking=False):
+def get_dataset_params(use_tmp=False, viking=False):
     '''
     Utility function holding parameters used to initialize a dataset
     :param use_tmp: set to true if image data is being stored in the GPU /tmp store
-    :param top_species: set to true to only use images with a sample of the 5 most common day and night species
     '''
     if use_tmp:
         image_folder = '~/../../../tmp/snapshot-serengeti/'
@@ -136,10 +140,7 @@ def get_dataset_params(use_tmp=False, top_species=False, viking=False):
         else:
             image_folder = '../snapshot-serengeti/'
 
-    if top_species:
-        images_df = pd.read_csv('./snapshot-serengeti/bbox_images_top_species.csv')
-    else:
-        images_df = pd.read_csv('./snapshot-serengeti/bbox_images_non_empty_downloaded.csv')
+    images_df = pd.read_csv('./snapshot-serengeti/bbox_images_split.csv')
     
     annotations_df = pd.read_csv('./snapshot-serengeti/bbox_annotations_downloaded.csv')
     classes_df = pd.read_csv('./snapshot-serengeti/classes.csv')
@@ -151,8 +152,8 @@ def get_dataset_params(use_tmp=False, top_species=False, viking=False):
 
 def main():
     # dataset = SerengetiDataset(*get_dataset_params())
-    day_dataset = SerengetiDataset(*get_dataset_params(), split='DAY')
-    night_dataset = SerengetiDataset(*get_dataset_params(), split='NIGHT')
+    day_dataset = SerengetiDataset(*get_dataset_params(), split='train', image_type='DAY')
+    night_dataset = SerengetiDataset(*get_dataset_params(), split='train', image_type='NIGHT')
     day_freqs = day_dataset.get_class_frequencies()
     night_freqs = night_dataset.get_class_frequencies()
     total_freqs = {k: (v, night_freqs[k]) for k, v in day_freqs.items() if k in night_freqs.keys()}
