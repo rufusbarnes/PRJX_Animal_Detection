@@ -32,7 +32,6 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
     :param suppress: classes that you know for sure cannot be in the image or you do not want in the image, a list
     :return: annotated image, a PIL Image
     """
-    print('Beggining Object Detection')
     # Transform
     image = normalize(to_tensor(resize(original_image)))
 
@@ -41,12 +40,10 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
 
     # Forward prop.
     predicted_locs, predicted_scores = model(image.unsqueeze(0))
-    print('\nPredictions complete')
 
     # Detect objects in SSD output
     det_boxes, det_labels, det_scores = model.detect_objects(predicted_locs, predicted_scores, min_score=min_score,
                                                              max_overlap=max_overlap, top_k=top_k)
-    print('\nObjects Detected')
 
     # Move detections to the CPU
     det_boxes = det_boxes[0].to('cpu')
@@ -101,8 +98,6 @@ if __name__ == '__main__':
     original_image = Image.open(img_path, mode='r')
     original_image = original_image.convert('RGB')
     detect(original_image, min_score=0.2, max_overlap=0.5, top_k=200).save('sample.png')
-
-    print('Rev map:', rev_label_map)
 
 # ALTERNATE IMAGES
 # PRBX/snapshot-serengeti/S1_B04_R1_PICT0006.jpg
