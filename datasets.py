@@ -1,6 +1,5 @@
 import torch
 from torch.utils.data import Dataset
-from torchvision.transforms import ToPILImage
 from transformations import BBoxToBoundary, BBoxSerengetiToBoundary, train_transform, test_transform
 import os
 import pandas as pd
@@ -9,12 +8,16 @@ from ast import literal_eval
 import ast
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import json
 
 class SerengetiDataset(Dataset):
     """
     A PyTorch Dataset class to be used in a PyTorch DataLoader to create batches.
     """
     def __init__(self, image_folder, images_df, annotations_df, classes_df, night_images, split, image_type=None):
+        with open('./snapshot-serengeti/annotations_map.json', 'r') as f:
+            self.bboxes = json.load(f)
+        
         self.image_folder = image_folder
         self.annotations_df = annotations_df
         self.images_df = images_df
@@ -43,14 +46,9 @@ class SerengetiDataset(Dataset):
             elif self.image_type == 'DAY':
                 self.images_df = self.images_df[~self.images_df['image_path_rel'].isin(self.night_images)]
 
-        self.bboxes = {row['id']: [] for _, row in self.images_df.iterrows()}
-        for i, row in self.annotations_df.iterrows():
-            if row['image_id'] in self.bboxes:
-                self.bboxes[row['image_id']].append(i)
-
         self.annotations_df['bbox'] = self.annotations_df['bbox'].apply(literal_eval)
         
-        print(f'Initialized dataset - split: {self.split} / classes: {len(self.classes_df)}.')
+        print(f'\nInitialized dataset - split: {self.split} / classes: {len(self.classes_df)}.')
 
     def __getitem__(self, i):
         image_info = self.images_df.iloc[i]
@@ -127,18 +125,15 @@ def show_sample(sample, bbox_type=None):
     plt.show()
 
 
-def get_dataset_params(use_tmp=False, viking=False):
+def get_dataset_params(use_tmp=False):
     '''
     Utility function holding parameters used to initialize a dataset
     :param use_tmp: set to true if image data is being stored in the GPU /tmp store
     '''
     if use_tmp:
-        image_folder = '~/../../../tmp/snapshot-serengeti/'
+        image_folder = '/tmp/snapshot-serengeti/'
     else:
-        if viking:
-            image_folder = '../PRBX/snapshot-serengeti/'
-        else:
-            image_folder = '../snapshot-serengeti/'
+        image_folder = '../snapshot-serengeti/'
 
     images_df = pd.read_csv('./snapshot-serengeti/bbox_images_split.csv')
     
@@ -159,7 +154,6 @@ def main():
     total_freqs = {k: (v, night_freqs[k]) for k, v in day_freqs.items() if k in night_freqs.keys()}
     viable_freqs = {k: v for k, v in total_freqs if min(v) > 500}
     print(total_freqs)
-
 
 
 if __name__ == '__main__':
