@@ -213,7 +213,7 @@ def calculate_mAP(det_boxes, det_labels, det_scores, true_boxes, true_labels):
             this_detection_box = det_class_boxes[d].unsqueeze(0)  # (1, 4)
             this_image = det_class_images[d]  # (), scalar
 
-            # Find objects in the same image with this class, their difficulties, and whether they have been detected before
+            # Find objects in the same image with this class, and whether they have been detected before
             object_boxes = true_class_boxes[true_class_images == this_image]  # (n_class_objects_in_img)
             # If no such object in this image, then the detection is a false positive
             if object_boxes.size(0) == 0:
@@ -224,7 +224,7 @@ def calculate_mAP(det_boxes, det_labels, det_scores, true_boxes, true_labels):
             overlaps = find_jaccard_overlap(this_detection_box, object_boxes)  # (1, n_class_objects_in_img)
             max_overlap, ind = torch.max(overlaps.squeeze(0), dim=0)  # (), () - scalars
 
-            # 'ind' is the index of the object in these image-level tensors 'object_boxes', 'object_difficulties'
+            # 'ind' is the index of the object in these image-level tensors 'object_boxes'
             # In the original class-level tensors 'true_class_boxes', etc., 'ind' corresponds to object with index...
             original_ind = torch.LongTensor(range(true_class_boxes.size(0)))[true_class_images == this_image][ind]
             # We need 'original_ind' to update 'true_class_boxes_detected'

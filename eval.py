@@ -41,7 +41,6 @@ def evaluate(test_loader, model):
             # Store this batch's results for mAP calculation
             boxes = [b.to(device) for b in boxes]
             labels = [l.to(device) for l in labels]
-            difficulties = [d.to(device) for d in difficulties]
 
             det_boxes.extend(det_boxes_batch)
             det_labels.extend(det_labels_batch)
@@ -61,9 +60,9 @@ def evaluate(test_loader, model):
 def main():
     # Parameters
     batch_size = 64
-    workers = 16
+    workers = 10
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    checkpoint = './checkpoint_full_n6.pth.tar'
+    checkpoint = './checkpoint_full_n6_backup.pth.tar'
 
     # Load model checkpoint that is to be evaluated
     checkpoint = torch.load(checkpoint)
@@ -74,7 +73,7 @@ def main():
     model.eval()
 
     # Load test data
-    test_dataset = SerengetiDataset(*get_dataset_params(viking=True), split='test', )
+    test_dataset = SerengetiDataset(*get_dataset_params(use_tmp=True), split='test')
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
                                             collate_fn=test_dataset.collate_fn, num_workers=workers, pin_memory=True)
 
