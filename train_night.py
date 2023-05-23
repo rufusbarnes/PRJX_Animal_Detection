@@ -3,10 +3,10 @@ from train import train
 def main():
     split='NIGHT'
     use_tmp=False
-    top_species=True
     n_classes=6 # (ELEPHANT/LION_FEMALE/DIKDIK/REEDBUCK/HIPPOPOTAMUS/EMPTY)
     output_file='checkpoint_night_n6'
-    train(split, use_tmp, top_species, n_classes, output_file=output_file, viking=True)
+    checkpoint=None
+    train(split, use_tmp, n_classes, output_file=output_file, checkpoint=checkpoint)
 
 if __name__ == '__main__':
     main()

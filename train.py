@@ -11,21 +11,26 @@ from models.EfficientNetSSD300 import EfficientNetSSD300, MultiBoxLoss
 from datasets import SerengetiDataset, get_dataset_params
 from transformations import *
 from utils import *
+import multiprocessing
 
-def train(split, use_tmp, top_species, n_classes, output_file='Checkpoint', viking=False):
+def train(image_type, use_tmp, n_classes, output_file, checkpoint):
     """
     Training.
+    :param image_type: 'night', 'day', or None
+    :param use_tmp: bool, true to use tmp storage
+    :param n_classes: int, number of classes including blank
+    :param output_file: string, filename to save model to
+    :param viking: bool, true if running on viking, false if running on gviking
     """
-    # Disable torchvision warnings
-    disable_beta_transforms_warning()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Learning parameters
-    checkpoint = None  # path to model checkpoint, None if none
     batch_size = 32  # batch size
-    iterations = 60_000  # number of iterations to train
-    workers = 16 # number of workers for loading data in the DataLoader
-    print_freq = 40  # print training status every __ batches
+    
+    # Get the number of available CPU cores
+    num_cores = multiprocessing.cpu_count()
+    workers = num_cores
+    print_freq = 50  # print training status every __ batches
     lr = 1e-3  # learning rate
     decay_lr_at = [80_000, 100_000]  # decay learning rate after these many iterations
     decay_lr_to = 0.1  # decay learning rate to this fraction of the existing learning rate
@@ -64,21 +69,21 @@ def train(split, use_tmp, top_species, n_classes, output_file='Checkpoint', viki
     print(f'\nLoaded model to {device}, {workers} workers.')
 
     # Custom dataloaders
-    train_dataset, _ = get_train_val_datasets(split=split, use_tmp=use_tmp, top_species=top_species, viking=viking)
+    params = get_dataset_params(use_tmp=use_tmp)
+    train_dataset = SerengetiDataset(*params, split='train', image_type=image_type)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
-                                               collate_fn=train_dataset.dataset.collate_fn, num_workers=workers,
+                                               collate_fn=train_dataset.collate_fn, num_workers=workers,
                                                pin_memory=True)  # note that we're passing the collate function here
     
-    print(f'Initialized data loader - use_tmp: {use_tmp} / top_species: {top_species}')
+    print(f'\nInitialized data loader - use_tmp: {use_tmp}')
 
-    # SET EPOCHS TO A CONSTANT FOR EACH SET, ie. 72 EPOCHS
-    epochs = iterations // (len(train_dataset) // batch_size)
+    epochs = 75
     # SET DECAY LR AT TO EPOCHS INSTEAD OF ITERATIONS
     decay_lr_at = [it // (len(train_dataset) // batch_size) for it in decay_lr_at]
 
     # Epochs
-    print(f'Train start.')
-    for epoch in range(start_epoch, epochs):
+    print(f'\nTrain start.')
+    for epoch in range(start_epoch, epochs+1):
 
         # Decay learning rate at particular epochs
         if epoch in decay_lr_at:
@@ -95,7 +100,11 @@ def train(split, use_tmp, top_species, n_classes, output_file='Checkpoint', viki
 
         # Save checkpoint
         # save_checkpoint(epoch, model, optimizer) REPLACE THIS
-        save_checkpoint(epoch, model, optimizer, output_file=output_file)
+        if epoch % 25 == 0:
+            print('Saving checkpoing:',output_file, epoch)
+            save_checkpoint(epoch, model, optimizer, output_file=output_file+str(epoch))
+        else:
+            save_checkpoint(epoch, model, optimizer, output_file=output_file)
 
 def train_epoch(train_loader, model, criterion, optimizer, epoch, print_freq, grad_clip):
     """
@@ -155,34 +164,13 @@ def train_epoch(train_loader, model, criterion, optimizer, epoch, print_freq, gr
                                                                   data_time=data_time, loss=losses))
     del predicted_locs, predicted_scores, images, boxes, labels  # free some memory since their histories may be stored
 
-def get_train_val_datasets(split=None, use_tmp=False, top_species=True, viking=False):
-    '''
-    :param split: string {'day', 'night'}, controls which image types are returned
-    :param use_tmp: boolean, set to true if dataset images are stored in /tmp gpu memory
-    :param top_species: boolean, set to true to only include {elephant, dikdik, lion_female, reedbuck, hippopotamous}
-    :returns: train and validation datasets, 70:30 split
-    '''
-
-    disable_beta_transforms_warning()
-    params = get_dataset_params(use_tmp=use_tmp, top_species=top_species, viking=viking)
-    dataset = SerengetiDataset(*params, split=split)
-
-    train_split = 0.7
-    n_train = int(len(dataset) * train_split)
-    train_dataset, val_dataset = torch.utils.data.random_split(dataset, (n_train, len(dataset)-n_train),)
-
-    train_dataset.dataset = copy(dataset)
-    train_dataset.dataset.transform = train_transform()
-
-    return train_dataset, val_dataset
-
 def main():
-    split=None
+    image_type=None
     use_tmp=False
-    top_species=True
     n_classes=6 # (ELEPHANT/LION_FEMALE/DIKDIK/REEDBUCK/HIPPOPOTAMUS/EMPTY)
     output_file='checkpoint_full_n6'
-    train(split, use_tmp, top_species, n_classes, output_file=output_file, viking=True)
+    checkpoint='checkpoint_full_n6_epoch_40.pth.tar'
+    train(image_type, use_tmp, n_classes, output_file=output_file, checkpoint=checkpoint)
 
 if __name__ == '__main__':
     main()

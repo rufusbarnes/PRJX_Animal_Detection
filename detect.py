@@ -5,15 +5,6 @@ from datasets import show_sample
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Load model checkpoint
-checkpoint = 'checkpoint_full_n6.pth.tar'
-checkpoint = torch.load(checkpoint, map_location=device)
-start_epoch = checkpoint['epoch'] + 1
-print('\nLoaded checkpoint from epoch %d.\n' % start_epoch)
-model = checkpoint['model']
-model = model.to(device)
-model.eval()
-
 # Transforms
 resize = transforms.Resize((300, 300))
 to_tensor = transforms.ToTensor()
@@ -32,7 +23,6 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
     :param suppress: classes that you know for sure cannot be in the image or you do not want in the image, a list
     :return: annotated image, a PIL Image
     """
-    print('Beggining Object Detection')
     # Transform
     image = normalize(to_tensor(resize(original_image)))
 
@@ -41,12 +31,10 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
 
     # Forward prop.
     predicted_locs, predicted_scores = model(image.unsqueeze(0))
-    print('\nPredictions complete')
 
     # Detect objects in SSD output
     det_boxes, det_labels, det_scores = model.detect_objects(predicted_locs, predicted_scores, min_score=min_score,
                                                              max_overlap=max_overlap, top_k=top_k)
-    print('\nObjects Detected')
 
     # Move detections to the CPU
     det_boxes = det_boxes[0].to('cpu')
@@ -96,18 +84,20 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
 import os, random
 
 if __name__ == '__main__':
+    # Select a random image
     img = random.choice(os.listdir("../PRBX/snapshot-serengeti/"))
     img_path = '../PRBX/snapshot-serengeti/' + img
     original_image = Image.open(img_path, mode='r')
-    original_image = original_image.convert('RGB')
-    detect(original_image, min_score=0.2, max_overlap=0.5, top_k=200).save('sample.png')
+    print(f'\nLoaded image {img}.')
 
-    print('Rev map:', rev_label_map)
+    # Load model checkpoint
+    checkpoint = 'checkpoint_day_n6.pth.tar'
+    checkpoint = torch.load(checkpoint, map_location=device)
+    print(f'\nLoaded checkpoint from epoch {checkpoint["epoch"] + 1}.\n')
+    model = checkpoint['model'].to(device)
+    model = model.to(device)
 
-# ALTERNATE IMAGES
-# PRBX/snapshot-serengeti/S1_B04_R1_PICT0006.jpg
-# PRBX/snapshot-serengeti/S1_B04_R1_PICT0007.jpg
-# PRBX/snapshot-serengeti/S1_B05_R2_PICT0038.jpg
-# PRBX/snapshot-serengeti/S1_B05_R3_PICT0140.jpg
-# PRBX/snapshot-serengeti/S1_B06_R1_PICT0009.jpg
-# PRBX/snapshot-serengeti/S1_B06_R3_PICT0127.jpg
+    #Save image to sample.png
+    filename = 'sample.png'
+    detect(original_image, min_score=0.2, max_overlap=0.5, top_k=200).save(filename)
+    print(f'\nSaved detected image to {filename}.')
