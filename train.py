@@ -11,8 +11,9 @@ from models.EfficientNetSSD300 import EfficientNetSSD300, MultiBoxLoss
 from datasets import SerengetiDataset, get_dataset_params
 from transformations import *
 from utils import *
+import multiprocessing
 
-def train(image_type, use_tmp, n_classes, output_file='Checkpoint', viking=False):
+def train(image_type, use_tmp, n_classes, output_file, checkpoint):
     """
     Training.
     :param image_type: 'night', 'day', or None
@@ -24,11 +25,12 @@ def train(image_type, use_tmp, n_classes, output_file='Checkpoint', viking=False
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Learning parameters
-    checkpoint = None  # path to model checkpoint, None if none
     batch_size = 32  # batch size
-    iterations = 60_000  # number of iterations to train
-    workers = 16 # number of workers for loading data in the DataLoader
-    print_freq = 40  # print training status every __ batches
+    
+    # Get the number of available CPU cores
+    num_cores = multiprocessing.cpu_count()
+    workers = num_cores
+    print_freq = 50  # print training status every __ batches
     lr = 1e-3  # learning rate
     decay_lr_at = [80_000, 100_000]  # decay learning rate after these many iterations
     decay_lr_to = 0.1  # decay learning rate to this fraction of the existing learning rate
@@ -67,7 +69,7 @@ def train(image_type, use_tmp, n_classes, output_file='Checkpoint', viking=False
     print(f'\nLoaded model to {device}, {workers} workers.')
 
     # Custom dataloaders
-    params = get_dataset_params(use_tmp=use_tmp, viking=viking)
+    params = get_dataset_params(use_tmp=use_tmp)
     train_dataset = SerengetiDataset(*params, split='train', image_type=image_type)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
                                                collate_fn=train_dataset.collate_fn, num_workers=workers,
@@ -75,13 +77,13 @@ def train(image_type, use_tmp, n_classes, output_file='Checkpoint', viking=False
     
     print(f'\nInitialized data loader - use_tmp: {use_tmp}')
 
-    epochs = 50
+    epochs = 75
     # SET DECAY LR AT TO EPOCHS INSTEAD OF ITERATIONS
     decay_lr_at = [it // (len(train_dataset) // batch_size) for it in decay_lr_at]
 
     # Epochs
     print(f'\nTrain start.')
-    for epoch in range(start_epoch, epochs):
+    for epoch in range(start_epoch, epochs+1):
 
         # Decay learning rate at particular epochs
         if epoch in decay_lr_at:
@@ -98,7 +100,11 @@ def train(image_type, use_tmp, n_classes, output_file='Checkpoint', viking=False
 
         # Save checkpoint
         # save_checkpoint(epoch, model, optimizer) REPLACE THIS
-        save_checkpoint(epoch, model, optimizer, output_file=output_file)
+        if epoch % 25 == 0:
+            print('Saving checkpoing:',output_file, epoch)
+            save_checkpoint(epoch, model, optimizer, output_file=output_file+str(epoch))
+        else:
+            save_checkpoint(epoch, model, optimizer, output_file=output_file)
 
 def train_epoch(train_loader, model, criterion, optimizer, epoch, print_freq, grad_clip):
     """
@@ -163,7 +169,8 @@ def main():
     use_tmp=False
     n_classes=6 # (ELEPHANT/LION_FEMALE/DIKDIK/REEDBUCK/HIPPOPOTAMUS/EMPTY)
     output_file='checkpoint_full_n6'
-    train(image_type, use_tmp, n_classes, output_file=output_file, viking=True)
+    checkpoint='checkpoint_full_n6_epoch_40.pth.tar'
+    train(image_type, use_tmp, n_classes, output_file=output_file, checkpoint=checkpoint)
 
 if __name__ == '__main__':
     main()
