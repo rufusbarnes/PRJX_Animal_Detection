@@ -2,6 +2,8 @@ from torchvision import transforms
 from utils import *
 from PIL import Image, ImageDraw, ImageFont
 from datasets import show_sample
+from datasets import *
+import os, random
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -35,7 +37,6 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
     # Detect objects in SSD output
     det_boxes, det_labels, det_scores = model.detect_objects(predicted_locs, predicted_scores, min_score=min_score,
                                                              max_overlap=max_overlap, top_k=top_k)
-
     # Move detections to the CPU
     det_boxes = det_boxes[0].to('cpu')
 
@@ -46,6 +47,7 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
 
     # Decode class integer labels
     det_labels = [rev_label_map[l] for l in det_labels[0].to('cpu').tolist()]
+    det_scores = [score for score in det_scores[0].to('cpu').tolist()]
 
     # If no objects found, the detected labels will be set to ['0.'], i.e. ['background'] in SSD300.detect_objects() in model.py
     if det_labels == ['background']:
@@ -72,26 +74,30 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
             det_labels[i]])  # a second rectangle at an offset of 1 pixel to increase line thickness
 
         # Text
-        text_size = font.getsize(det_labels[i].upper())
+        text_size = font.getsize(det_labels[i].upper() + ': 0.000')
         text_location = [box_location[0] + 2., box_location[1] - text_size[1]]
         textbox_location = [box_location[0], box_location[1] - text_size[1], box_location[0] + text_size[0] + 4.,
                             box_location[1]]
         draw.rectangle(xy=textbox_location, fill=label_color_map[det_labels[i]])
-        draw.text(xy=text_location, text=det_labels[i].upper(), fill='white', font=font)
+        draw.text(xy=text_location, text=f'{det_labels[i].upper()}: {det_scores[i]:.3f}', fill='white', font=font)
     del draw
     return annotated_image
 
-import os, random
 
 if __name__ == '__main__':
     # Select a random image
-    img = random.choice(os.listdir("../PRBX/snapshot-serengeti/"))
-    img_path = '../PRBX/snapshot-serengeti/' + img
-    original_image = Image.open(img_path, mode='r')
+    image_folder = '../snapshot-serengeti/'
+    test_images = pd.read_csv('./snapshot-serengeti/bbox_images_split.csv')
+    test_images = test_images[test_images['split'] == 'test'] 
+    test_images = SerengetiDataset(*get_dataset_params(), split='TEST').images_df
+    img = random.choice(test_images['image_path_rel'].values)
+
     print(f'\nLoaded image {img}.')
+    img = os.path.join(image_folder, img)
+    img = Image.open(os.path.join(image_folder, img))
 
     # Load model checkpoint
-    checkpoint = 'checkpoint_day_n6.pth.tar'
+    checkpoint = '../full_75.pth.tar'
     checkpoint = torch.load(checkpoint, map_location=device)
     print(f'\nLoaded checkpoint from epoch {checkpoint["epoch"] + 1}.\n')
     model = checkpoint['model'].to(device)
@@ -99,5 +105,5 @@ if __name__ == '__main__':
 
     #Save image to sample.png
     filename = 'sample.png'
-    detect(original_image, min_score=0.2, max_overlap=0.5, top_k=200).save(filename)
+    detect(img, min_score=0.1, max_overlap=0.3, top_k=6, suppress={'elephant'}).save(filename)
     print(f'\nSaved detected image to {filename}.')
