@@ -71,8 +71,8 @@ def evaluate(test_loader, model, min_score=0.1, max_overlap=0.3, top_k=6):
 
 
 def eval_best(batch_size, workers, min_score, max_overlap, top_k, test_datasets):
-    best_checkpoints = ['full_150', 'full_100', 'day_100', 'night_100', 'night_833']
-    get_path = lambda x: '../models/' + x + '.pth.tar'
+    best_checkpoints = ['full_150', 'full_100', 'day_100', 'night_100']
+    get_path = lambda x: './models/' + x + '.pth.tar'
     checkpoints = [get_path(checkpoint) for checkpoint in best_checkpoints]
 
     print(f'\nUsing device: {device}.')
@@ -89,7 +89,7 @@ def eval_best(batch_size, workers, min_score, max_overlap, top_k, test_datasets)
             print(evaluate(test_loader, model, min_score, max_overlap, top_k))
 
 def eval_all(batch_size, workers, min_score, max_overlap, top_k, test_datasets):
-    mixed_checkpoints  = ['full_100', 'full_125', 'full_150']
+    mixed_checkpoints  = ['full_100', 'full_150']
     day_checkpoints   = ['day_100'] 
     night_checkpoints = ['night_100']
     checkpoints = {
@@ -98,7 +98,7 @@ def eval_all(batch_size, workers, min_score, max_overlap, top_k, test_datasets):
         'night': night_checkpoints
     }
 
-    get_path = lambda x: '../models/' + x + '.pth.tar'
+    get_path = lambda x: './models/' + x + '.pth.tar'
     for k, v in checkpoints.items():
         test_dataset = test_datasets[k]
         for f in v:
@@ -113,7 +113,7 @@ def eval_all(batch_size, workers, min_score, max_overlap, top_k, test_datasets):
             print(evaluate(test_loader, model, min_score, max_overlap, top_k))
 
 def eval_single(batch_size, workers, min_score, max_overlap, top_k, test_dataset):
-    f = 'full_75'
+    f = 'full_150'
     get_path = lambda x: '../models/' + x + '.pth.tar'
     path = get_path(f)
 
@@ -157,10 +157,7 @@ def main():
     '''
     # Parameters
     num_cores = multiprocessing.cpu_count()
-    # workers = num_cores
-    # if (workers < 48):
-    #     return
-    workers = 10
+    workers = num_cores
     print('Workers:',workers)
     batch_size = 2 * workers
 
@@ -170,11 +167,11 @@ def main():
     test_datasets = {'mixed': mixed, 'day': day, 'night': night}
 
     top_k=6
-    min_score = 0.2 # anything 0.05 - 0.2 works well, the higher the value the faster the training
+    min_score = 0.2   # anything 0.05 - 0.2 works well, the higher the value the faster the training
     max_overlap = 0.4 # 0.3 - 0.4 works best on full_75
     
     eval_best(batch_size, workers, min_score, max_overlap, top_k, test_datasets)
-    # eval_all(batch_size, workers, min_score, max_overlap, top_k, test_datasets)
+    eval_all(batch_size, workers, min_score, max_overlap, top_k, test_datasets)
 
 if __name__ == '__main__':
     main()

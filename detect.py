@@ -84,12 +84,20 @@ def detect(original_image, min_score, max_overlap, top_k, suppress=None):
     return annotated_image
 
 
+HIPPO = 'hippopotamus'
+ELEPHANT = 'elephant'
+DIKDIK = 'dikdik'
+REEDBUCK = 'reedbuck'
+LION = 'lionfemale'
+
 if __name__ == '__main__':
     # Select a random image
     image_folder = '../snapshot-serengeti/'
-    test_images = pd.read_csv('./snapshot-serengeti/bbox_images_split.csv')
-    test_images = test_images[test_images['split'] == 'test'] 
-    test_images = SerengetiDataset(*get_dataset_params(), split='TEST').images_df
+    test_images = pd.read_csv('./snapshot-serengeti/bbox_images_non_empty.csv')
+    test_images = test_images[test_images['split'] == 'train']
+    test_images = test_images[test_images['question__species'].isin({DIKDIK, REEDBUCK})]
+     
+    # test_images = SerengetiDataset(*get_dataset_params(), split='TEST').images_df
     img = random.choice(test_images['image_path_rel'].values)
 
     print(f'\nLoaded image {img}.')
@@ -97,7 +105,7 @@ if __name__ == '__main__':
     img = Image.open(os.path.join(image_folder, img))
 
     # Load model checkpoint
-    checkpoint = '../full_75.pth.tar'
+    checkpoint = './models/full_150.pth.tar'
     checkpoint = torch.load(checkpoint, map_location=device)
     print(f'\nLoaded checkpoint from epoch {checkpoint["epoch"] + 1}.\n')
     model = checkpoint['model'].to(device)
@@ -105,5 +113,8 @@ if __name__ == '__main__':
 
     #Save image to sample.png
     filename = 'sample.png'
-    detect(img, min_score=0.1, max_overlap=0.3, top_k=6, suppress={'elephant'}).save(filename)
+    min_score = 0.01
+    max_overlap = 0.4
+    top_k = 6
+    detect(img, min_score=min_score, max_overlap=max_overlap, top_k=top_k, suppress=suppress).save(filename)
     print(f'\nSaved detected image to {filename}.')
