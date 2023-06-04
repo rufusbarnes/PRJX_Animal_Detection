@@ -92,10 +92,8 @@ LION = 'lionfemale'
 
 if __name__ == '__main__':
     # Select a random image
-    image_folder = '../snapshot-serengeti/'
-    test_images = pd.read_csv('./snapshot-serengeti/bbox_images_non_empty.csv')
-    test_images = test_images[test_images['split'] == 'train']
-    test_images = test_images[test_images['question__species'].isin({DIKDIK, REEDBUCK})]
+    image_folder = './snapshot-serengeti/images'
+    test_images = pd.read_csv('./snapshot-serengeti/test_sample.csv')
      
     # test_images = SerengetiDataset(*get_dataset_params(), split='TEST').images_df
     img = random.choice(test_images['image_path_rel'].values)
