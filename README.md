@@ -1,7 +1,10 @@
 This is an animal detection project based off of **[PyTorch](https://pytorch.org) Tutorial to Object Detection**.
 
-The dataset used for training and validation is accessible on https://lila.science/datasets/snapshot-serengeti. The specific images ued are listed in the bbox_images_split.csv file in the snapshot-serengeti folder.
+The dataset used for training and validation is accessible on https://lila.science/datasets/snapshot-serengeti. The specific images used are listed in the bbox_images_split.csv file in the snapshot-serengeti folder.
 
-The conda environment used to run the program can be setup using the environment.yaml file.
+The conda environment used to run the program can be setup using the environment.yaml file, using the command `conda env create -f environment.yaml`, and activated with `conda activate environment`.
 
-Evaluation on the fully trained models can be performed by running eval.py from the directory the repository has been cloned to after launching the virtual environment with conda activate ENV_NAME_HERE.
+Evaluation of a fully trained model (on a small sample of the validation dataset) can be performed by:
+1. Activating the conda virtual environment on a machine with CUDA enabled
+1. Change into the repository source directory
+1. Run the command `python eval.py`.

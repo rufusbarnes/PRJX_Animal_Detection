@@ -133,9 +133,9 @@ def get_dataset_params(use_tmp=False):
     if use_tmp:
         image_folder = '/tmp/snapshot-serengeti/'
     else:
-        image_folder = '../snapshot-serengeti/'
+        image_folder = './snapshot-serengeti/images/'
 
-    images_df = pd.read_csv('./snapshot-serengeti/bbox_images_split.csv')
+    images_df = pd.read_csv('./snapshot-serengeti/test_sample.csv')
     
     annotations_df = pd.read_csv('./snapshot-serengeti/bbox_annotations_downloaded.csv')
     classes_df = pd.read_csv('./snapshot-serengeti/classes.csv')
