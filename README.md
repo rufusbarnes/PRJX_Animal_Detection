@@ -8,3 +8,9 @@ Evaluation of a fully trained model (on a small sample of the validation dataset
 1. Activating the conda virtual environment on a machine with CUDA enabled
 1. Change into the repository source directory
 1. Run the command `python eval.py`.
+
+To run object detection on a single image:
+1. Activate the conda virtual environment 
+1. Change into the repository source directory
+1. Run the command `python detect.py`.
+1. The image will be output to sample.png for inspection.
